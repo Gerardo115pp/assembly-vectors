@@ -14,13 +14,26 @@ DEFAULT rel ;
 
 section .data
 ; Constants section
+
+; Error messages
 error_reading_digit: db "Digit size exceeds the int buffer size", 10, 0
 error_vectors_length: db "Vectors are not of the same length", 10, 0
-INT_BUFFER_SIZE: equ 20
+
+; Messages for the user
 VECTOR_LENGTH_MSG: db "Vector has a length of ", 0
 VECTOR_A_BEEN_LOADED: db "Loading Vector A",10,0
 VECTOR_B_BEEN_LOADED: db "Loading Vector B",10,0
 COMA_MSG: db ", ", 0
+DOT_PRO_MSG: db "dot product: ", 0
+ADDITION_MSG: db "Addition: ", 0
+
+; Reverse vectors excerise
+VECTOR_A_REVERSE_MSG: db "Reversing Vector A",10,0 
+VECTOR_B_REVERSE_MSG: db "Reversing Vector B",10,0
+A_PREFIX_REVERSE_VECTOR: db "A[", 0
+B_PREFIX_REVERSE_VECTOR: db "B[", 0
+A_SUFFIX_REVERSE_VECTOR: db "]", 0
+
 
 section .bss
 ; Variables section
@@ -30,6 +43,8 @@ vector_a_str: resb 35
 vector_b_str: resb 35
 a_length: resb 1
 b_length: resb 1
+
+added_vector: resd 100
 
 ; used to store a digit of a vector
 int_buffer: resb 20
@@ -92,6 +107,35 @@ _start:
 
     .operations_start:
 
+        ;dot product
+        call dot_product ; result in rax
+        print_str DOT_PRO_MSG
+        print_int rax
+        print_str newline
+
+        ;addition
+        call vector_addition ; result in added_vector, it will also print the necesary messages to stdout
+
+        ; print reversed vector A
+        print_str newline
+        print_str newline
+        print_str VECTOR_A_REVERSE_MSG
+        
+        ; call reverse_vector for vector A
+        mov rdi, vector_a
+        mov rsi, a_length
+        lea rdx, A_PREFIX_REVERSE_VECTOR
+        call reverse_vector
+
+        ; print reversed vector B
+        print_str newline
+        print_str VECTOR_B_REVERSE_MSG
+        
+        ; call reverse_vector for vector A
+        mov rdi, vector_b
+        mov rsi, b_length
+        lea rdx, B_PREFIX_REVERSE_VECTOR
+        call reverse_vector
 
 
     .end_ok:
@@ -175,6 +219,101 @@ _parse_vector:
 
 ; }
 
+dot_product:
+    ; this program will use local variables because is not meant to be reused
+    ; rdi = dot product result
+    ; rsi = vector a, length of a and b should be the same so its not important which one 
+    ; r8 =  counter
+    ; just for convension we will return the result in rax
+    xor rdi, rdi ; rdi = 0
+    xor rax, rax ; rax = 0
+    xor r8, r8 ; r8 = 0
+    xor rsi , rsi ; rsi = 0
+
+    movzx rsi, byte [a_length] ; rsi = length of vectors
+
+    .dot_product_loop:
+
+        mov rax, [vector_a+r8*4] ; rax = vector_a[counter]
+        mul dword [vector_b+r8*4] ; rax = vector_a[counter] * vector_b[counter]
+        add rdi, rax ; rdi = rdi + rax
+        inc r8 ; r8++ 
+
+        dec rsi ; rsi--
+        jnz .dot_product_loop
+    
+    mov rax, rdi ; return the result in rax
+    ret
+; }
+
+vector_addition:
+    ; also will use local variables
+    ; rbx = nth addition result
+    ; rcx = vector length control variable, when its 0 we are done
+    ; r8 = counter
+    xor rbx, rbx ; rbx = 0
+    xor r8, r8 ; r8 = 0
+
+
+    print_str ADDITION_MSG
+    movzx rcx, byte [a_length] ; rcx = length of vectors
+    .addition_loop:
+        xor rax, rax ; rax = 0
+        xor rdx, rdx ; rdx = 0
+        mov ebx, dword [vector_a+r8*4] ; rbx = vector_a[counter]
+        mov eax, dword [vector_b+r8*4] ; rax = vector_b[counter]
+        add rbx, rax ; rbx = rbx + rax
+
+        print_int rbx
+
+        mov [added_vector+r8*4], ebx ; store the 32 lower bits of rbx in the added vector
+        inc r8 ; r8++
+        
+        dec rcx ; rcx--
+        jz .addition_done
+
+        print_str COMA_MSG
+        jmp .addition_loop
+        
+    .addition_done:
+    ret
+; }
+
+reverse_vector:
+    ; Reverses a vector
+    ; Parameters:
+    ;   rdi - *vector to reverse
+    ;   rsi - *length of the vector
+    ;   rdx - *prefix string
+    ; Register usage:
+    ;   rcx - counter, stop when rcx == 0
+    ;   rax - vector element
+    xor rcx, rcx
+    xor rax, rax
+
+    movzx rcx, byte [rsi] ; length of vector
+    dec rcx ; rcx = length of vector - 1
+    .loop_reverse_vector:
+        print_str rdx
+        mov eax, dword [rdi + rcx*4]
+        print_int rax
+        print_str A_SUFFIX_REVERSE_VECTOR
+        print_str COMA_MSG
+
+        dec rcx
+        jnz .loop_reverse_vector
+
+    ; print last element
+    print_str rdx
+    mov eax, dword [rdi]
+    print_int rax
+    print_str A_SUFFIX_REVERSE_VECTOR
+    print_str newline
+    ret
+
+
+
+    
 
 
 
