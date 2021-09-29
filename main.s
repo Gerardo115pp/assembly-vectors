@@ -13,41 +13,43 @@ DEFAULT rel ;
 
 
 section .data
-; Constants section
+    ; Constants section
 
-; Error messages
-error_reading_digit: db "Digit size exceeds the int buffer size", 10, 0
-error_vectors_length: db "Vectors are not of the same length", 10, 0
+    ; Error messages
+    error_reading_digit: db "Digit size exceeds the int buffer size", 10, 0
+    error_vectors_length: db "Vectors are not of the same length", 10, 0
 
-; Messages for the user
-VECTOR_LENGTH_MSG: db "Vector has a length of ", 0
-VECTOR_A_BEEN_LOADED: db "Loading Vector A",10,0
-VECTOR_B_BEEN_LOADED: db "Loading Vector B",10,0
-COMA_MSG: db ", ", 0
-DOT_PRO_MSG: db "dot product: ", 0
-ADDITION_MSG: db "Addition: ", 0
+    ; Messages for the user
+    VECTOR_LENGTH_MSG: db "Vector has a length of ", 0
+    VECTOR_A_BEEN_LOADED: db "Loading Vector A",10,0
+    VECTOR_B_BEEN_LOADED: db "Loading Vector B",10,0
+    COMA_MSG: db ", ", 0
+    DOT_PRO_MSG: db "dot product: ", 0
+    ADDITION_MSG: db "Addition: ", 0
 
-; Reverse vectors excerise
-VECTOR_A_REVERSE_MSG: db "Reversing Vector A",10,0 
-VECTOR_B_REVERSE_MSG: db "Reversing Vector B",10,0
-A_PREFIX_REVERSE_VECTOR: db "A[", 0
-B_PREFIX_REVERSE_VECTOR: db "B[", 0
-A_SUFFIX_REVERSE_VECTOR: db "]", 0
-
+    ; Reverse vectors excerise
+    VECTOR_A_REVERSE_MSG: db "Reversing Vector A",10,0 
+    VECTOR_B_REVERSE_MSG: db "Reversing Vector B",10,0
+    A_PREFIX_REVERSE_VECTOR: db "A[", 0
+    B_PREFIX_REVERSE_VECTOR: db "B[", 0
+    A_SUFFIX_REVERSE_VECTOR: db "]", 0
+    OUTPUT_FILE: db "output.txt", 0
+; end of data section
 
 section .bss
-; Variables section
-vector_a: resd 100
-vector_b: resd 100
-vector_a_str: resb 35
-vector_b_str: resb 35
-a_length: resb 1
-b_length: resb 1
+    ; Variables section
+    vector_a: resd 100
+    vector_b: resd 100
+    vector_a_str: resb 35
+    vector_b_str: resb 35
+    a_length: resb 1
+    b_length: resb 1
 
-added_vector: resd 100
+    added_vector: resd 100
 
-; used to store a digit of a vector
-int_buffer: resb 20
+    ; used to store a digit of a vector
+    int_buffer: resb 20
+; end of bss section
 
 section .text
 ; Code section
@@ -85,8 +87,6 @@ section .text
 
 global _start
 _start:
-    ; LOADING VECTORS
-    ; ----------------
 
     print_str VECTOR_A_BEEN_LOADED
     load_vector vector_a_file, vector_a_str, a_length, vector_a
@@ -288,28 +288,137 @@ reverse_vector:
     ; Register usage:
     ;   rcx - counter, stop when rcx == 0
     ;   rax - vector element
+    ;   r11 - vector element, [32]byte
+    ;   r12 - output file content, [100]byte
+    
+    ; Local variables:
+    push rbp ; save rbp
+    mov rbp, rsp ; rbp = rsp
+    sub rsp, 0x20 ; allocate 32 bytes for number storage
+    mov r11, rsp ; r11 = vector element[32]byte
+    sub rsp, 0x64 ; allocate 100 bytes for number storage
+    mov r12, rsp ; r12 = output file content[100]byte
+
     xor rcx, rcx
     xor rax, rax
 
     movzx rcx, byte [rsi] ; length of vector
     dec rcx ; rcx = length of vector - 1
     .loop_reverse_vector:
-        print_str rdx
-        mov eax, dword [rdi + rcx*4]
-        print_int rax
-        print_str A_SUFFIX_REVERSE_VECTOR
-        print_str COMA_MSG
+        ; clear strings
+            push rdi
+            push rsi
+            push rax
+
+            mov rdi, r11 ; *vector_element = r11
+            mov rsi, 32 ; length of array
+            call strclear
+
+            pop rax
+            pop rsi
+            pop rdi
+        ; end clear strings
+
+        ; copy prefix string on the vector element
+            push rdi
+            push rsi
+            push rax
+            push rbx
+            mov rdi, rdx ; rdi = prefix string
+            mov rsi, r11 ; rsi = vector_element
+            call strcopy
+            mov r8, rax ; r8 = length of prefix string
+            pop rbx
+            pop rax
+            pop rsi
+            pop rdi
+        ; end copy prefix string
+
+        ; copy number on the vector element
+            push rdi
+            push rsi
+            push rax
+            push rbx
+            push rdx
+            push rcx
+            
+            xor rax, rax ; rax = 0
+            mov eax, dword [rdi + rcx*4]
+            mov rdi, rax ; rdi = number
+            mov rsi, r11 ; rdi = vector_element
+            add rsi, r8 ; rdi = vector_element + length of prefix string
+            call parseInt
+
+            mov rsi, r11 ; rsi = vector_element
+            mov rdi, r12
+            call strcat ; add the vector element to the output file
+
+            mov rsi, A_SUFFIX_REVERSE_VECTOR 
+            call strcat ; add the suffix to the output file
+
+            pop rcx
+            pop rdx
+            pop rbx
+            pop rax
+            pop rsi
+            pop rdi
+
+        ; end copy number
 
         dec rcx
-        jnz .loop_reverse_vector
 
-    ; print last element
-    print_str rdx
-    mov eax, dword [rdi]
-    print_int rax
-    print_str A_SUFFIX_REVERSE_VECTOR
+        cmp rcx, -1
+        jle .done_reverse_vector
+        
+        push rsi
+        push rdi
+        push rax
+        push rbx
+        push rcx
+
+        mov rdi, r12
+        mov rsi, COMA_MSG
+        call strcat ; add the coma to the output file
+
+        pop rcx
+        pop rbx
+        pop rax
+        pop rdi
+        pop rsi
+
+        jmp .loop_reverse_vector
+
+    .done_reverse_vector:
+    print_str r12
     print_str newline
+
+    push rdi
+    push rsi
+    mov rdi, r12
+    call strlen
+    
+    mov rdi, OUTPUT_FILE
+    mov rsi, r12
+    mov rdx, rax
+
+    push rax
+    ; adding a newline at the end of output file
+    mov byte [r12+rdx], 10
+    inc rdx
+
+    call write_file
+
+    pop rax
+    mov rdi, r12
+    mov rsi, rax ; rsi = length of output file
+    call strclear ; clear the output file
+
+    pop rsi
+    pop rdi
+    mov rsp, rbp ; restore rsp
+    pop rbp ; restore rbp
     ret
+; }
 
 
 
